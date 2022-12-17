@@ -1,0 +1,7 @@
+{
+	"require": {
+		"mesilov/bitrix24-php-sdk": "2.x",
+		"monolog/monolog": "2.*"
+	},
+	"minimum-stability": "dev"
+}
