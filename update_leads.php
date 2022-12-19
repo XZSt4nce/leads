@@ -98,7 +98,7 @@ foreach ($leads as $lead) {
 				$opportunity = $lead['OPPORTUNITY'];
 				// Либо статус лида переходит в "Думает", "Назначена встреча" или "Ожидание решения",
 				// либо отмечается неуспешная обработка лида
-				if rand(0, 1) {
+				if (rand(0, 1)) {
 					$statuses = array("UC_8R263T", "UC_JEL0AG", "UC_XYLS6I");
 					$status = $statuses[array_rand($statuses, 1)];
 					$completion = rand(51, 99);

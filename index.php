@@ -1,91 +1,111 @@
-#!/usr/bin/php
-<?php
-// Первая строка является шебангом (от англ. Shebang)
-// Включение строго-типизированного режима
-declare(strict_types=1);
-// Требование подключения файла autoload.php
-require_once __DIR__ . '/vendor/autoload.php';
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Эффективность сотрудников</title>
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+	</head>
+	<body style="margin: 50px;">
+		<h1 align=center>Эффективность сотрудников</h1>
+		<form name="form" action="" method="get" style="margin: 20px 0px 5px 0px;">
+		<label for="start_date">Выбрать данные с</div>
+		<input id="start_date" name="start_date" type="date" value="<?php echo date('Y-m-d',strtotime("-1 days")); ?>">
+		<label for="end_date" style="display:inline;">по</div>
+		<input id="end_date" name="end_date" type="date" value="<?php echo date("Y-m-d"); ?>">
+		<input type="submit" value="Найти" name="done">
+		</form>
+		<div id="error" style="display: none; color: #FF0000"></div>
+		<br>
+	
+		<table class="table">
+			<?php
+			$host = "localhost";
+                        $user = "bitrix0";
+                        $pass = str_replace("\n", "", fgets(fopen('db_pass.txt', 'r')));
+                        $db = "sitemanager";
+                        $link = mysqli_connect($host, $user, $pass, $db);
+                        if (mysqli_connect_errno()) {
+                                die('Ошибка соединения: ' . mysqli_connect_error());
+                        }
 
-// Импорт
-use Monolog\Handler\StreamHandler;
-use Monolog\Logger;
-use Symfony\Component\HttpClient\HttpClient;
+			$query = "SELECT column_name FROM information_schema.columns WHERE table_name = 'efficiency_eval' AND column_name LIKE 'object_%';";
+			$result = mysqli_query($link, $query)->fetch_all();
+			$fields = array("last_name", "name", "second_name", "user_id", "period", "modified", "processed", "junk", "avg_completion");
+			$headers = array("Фамилия", "Имя", "Отчество", "ID сотрудника", "Период", "Лидов обработано", "Лидов подписало договор", "Некачественных лидов", "Процент завершения");
+			$objects = array();			
 
-// Указание файла, в который будут записываться логи
-$log = new Logger('name');
-$log->pushHandler(new StreamHandler('b24-api-client-debug.log', Logger::DEBUG));
+			foreach ($result as $field) {
+				array_push($objects, $field[0]);
+			}
 
-// Авторизация по WebHook
-$client = HttpClient::create(["verify_peer"=>false, "verify_host"=>false]);
+			$fields = array_merge($fields, $objects);
+			$headers = array_merge($headers, $objects);
 
-// Получение ключа REST API из файла
-$key = str_replace("\n", "", fgets(fopen('rest_api_key.txt', 'r')));
+			echo "
+			<thead>
+                                <tr>";
+                        foreach ($headers as $field) { echo "<th>" . $field . "</th>"; }
+                          echo "</tr>
+                       	</thead>
+                        <tbody>";	
 
-// Определение полномочий по ключу REST API
-$credentials = new \Bitrix24\SDK\Core\Credentials\Credentials(
-    new \Bitrix24\SDK\Core\Credentials\WebhookUrl($key),
-    null,
-    null,
-    null
-);
+			if (isset($_GET['done'])) {
+				echo "
+				<script>
+					var start = document.getElementById('start_date');
+					var end = document.getElementById('end_date');
+                                        start.value = '" . $_GET['start_date'] . "';
+					end.value = '" . $_GET['end_date'] . "';
+				</script>
+				";
+				if (empty($_GET['start_date']) || empty($_GET['end_date'])) {
+					echo "
+					<script>
+						var error = document.getElementById('error');
+						error.innerHTML = 'Выберите даты';
+						error.style.display = 'inline';
+					</script> 
+					";
+				} elseif ($_GET['start_date'] > $_GET['end_date']) {
+					echo "
+                                        <script>
+                                                var error = document.getElementById('error');
+                                                error.innerHTML = 'Начальная дата должна быть раньше конечной';
+                                                error.style.display = 'inline';
+                                        </script>
+                                        ";
+				} else {
+					echo "
+                                        <script>
+                                                var x = document.getElementById('error');
+                                                x.style.display = 'none';
+                                        </script>
+                                        ";
+					$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period >= '%s' AND period <= '%s';", implode(', ', $fields), $_GET['start_date'], $_GET['end_date']);
+                                	$result = mysqli_query($link, $query);
 
-// Инициализация API клиента
-$apiClient = new \Bitrix24\SDK\Core\ApiClient($credentials, $client, $log);
-
-// Функция генерации случайного имени
-function rand_name() {
-	$set = array("Адам", "Адриан", "Аким", "Александр", "Алексей", "Альберт", "Анатолий", "Андрей", 
-				 "Антип", "Антон", "Аркадий", "Артем", "Артур", "Афанасий", "Борис", "Вадим", "Валентин", "Валерий", 
-				 "Василий", "Вениамин", "Виктор", "Владимир", "Виссарион", "Виталий", "Владислав", "Вячеслав", 
-				 "Геннадий", "Георгий", "Григорий", "Даниил", "Денис", "Дмитрий", "Евгений", "Егор", "Елисей", 
-				 "Захар", "Иван", "Игорь", "Игнат", "Казимир", "Кирилл", "Леонид", "Леонард", "Макар", "Максим", 
-				 "Мирон", "Митрофан", "Михаил", "Николай", "Олег", "Родион", "Роман", "Ростислав", "Светозар", 
-				 "Святослав", "Серафим", "Семен", "Степан", "Станислав", "Стефан", "Тимофей", "Тарас", "Федор",
-				 "Филипп", "Эдуард", "Юлий", "Юрий", "Ярослав");
-	return $set[array_rand($set, 1)];
-}
-
-// Функция генерации случайного отчества
-function rand_second_name() {
-	$set = array("Адамович", "Адрианович", "Акимович", "Александрович", "Алексеевич", "Альбертович", 
-				 "Анатольевич", "Андреевич", "Антипович", "Антонович", "Аркадьевич", "Артемович", "Артурович", 
-				 "Афанасьевич", "Борисович", "Вадимович", "Валентинович", "Валерьевич", "Васильевич", "Вениаминович",
-				 "Викторович", "Владимирович", "Виссарионович", "Витальевич", "Владиславович", "Вячеславович", 
-				 "Геннадьевич", "Георгиевич", "Даниилович", "Денисович", "Дмитриевич", "Евгеньевич", "Егорович", 
-				 "Елисеевич", "Захарович", "Иванович", "Казимирович", "Леонидович", "Леонардович", "Макарович", 
-				 "Максимович", "Миронович", "Митрофанович", "Михайлович", "Николаевич", "Родионович", "Романович", 
-				 "Ростиславович", "Светозарович", "Святославович", "Серафимович", "Семенович", "Степанович", 
-				 "Станиславович", "Стефанович", "Тимофеевич", "Тарасович", "Федорович", "Филиппович", "Эдуардович",
-				 "Юльевич", "Юрьевич", "Ярославович");
-	return $set[array_rand($set, 1)];
-}
-
-// Функция генерации случайной фамилии
-function rand_last_name() {
-	$set = array("Иванов", "Смирнов", "Кузнецов", "Попов", "Васильев", "Петров", "Петров", "Соколов", 
-				 "Михайлов", "Новиков", "Федоров", "Морозов", "Волков", "Алексеев", "Лебедев", "Семенов", "Егоров", 
-				 "Павлов", "Козлов", "Степанов", "Николаев", "Орлов", "Андреев", "Макаров", "Никитин", "Захаров", 
-				 "Зайцев", "Соловьев", "Тирон", "Глава", "Андрианов", "Умаров", "Перов", "Кростылев", "Чиндарев", 
-				 "Кузьмин", "Гусев", "Фролов", "Сергеев", "Белов", "Медведев", "Путин", "Поляков", "Насыров", 
-				 "Самойленко", "Столбов", "Булаев", "Ковалев", "Жамбалдоржиев", "Нагзибеков", "Кочагов", "Загребин",
-				 "Ли", "Осипов", "Жуков", "Серов", "Демин");
-	return $set[array_rand($set, 1)];
-}
-
-// Цикл, который будет 50 раз создавать лидов со случайными значениями параметров
-for ($i = 0; $i < 50; $i++) {
-	// Определение параметров
-	$name = rand_name();
-	$second_name = rand_second_name();
-	$last_name = rand_last_name();
-
-	// Объединение параметров в массив полей
-	$fields = array("NAME"=>$name, "SECOND_NAME"=>$second_name, "LAST_NAME"=>$last_name, 
-					"STATUS_ID"=>"NEW", "UF_CRM_1671268270567"=>0);
-									  // UF_CRM_1671268270567 – пользовательское поле, которое означает процент завершения
-
-	// Запрос на создание лида с определёнными выше параметрами
-	$apiClient->getResponse('crm.lead.add', ["fields"=>$fields]);
-}
-
-
+                                	while($row = $result->fetch_assoc()) {
+                                        	echo "<tr>";
+                                        	foreach ($fields as $field) {
+                                        	        echo "<td>" . $row[$field] . "</td>";
+                                        	}
+                                        	echo "</tr>";
+                                	}
+				}
+			} else {
+				$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period >='%s' AND period <= '%s';", implode(', ', $fields), date('Y-m-d',strtotime("-1 days")), date('Y-m-d'));
+				$result = mysqli_query($link, $query);
+				while($row = $result->fetch_assoc()) {
+					echo "<tr>";
+					foreach ($fields as $field) {
+						echo "<td>" . $row[$field] . "</td>";
+					}
+					echo "</tr>";
+				}
+			}
+			?>
+			</tbody>
+		</table>	
+	</body>
+</html>

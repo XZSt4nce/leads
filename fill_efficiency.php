@@ -21,6 +21,21 @@ $credentials = new \Bitrix24\SDK\Core\Credentials\Credentials(
 
 $apiClient = new \Bitrix24\SDK\Core\ApiClient($credentials, $client, $log);
 
+// Запрос на получение информации о сотрудниках
+$result = $apiClient->getResponse('user.get');
+$result = json_decode($result->getContent(), true)['result'];
+// Создание пустого массива сотрудников
+$users = array();
+// Цикл для прохождения по результатам запроса, идентификатор сотрудника заносится в массив $users
+foreach ($result as $record) { array_push($users, $record['ID']); }
+
+// Получение идентификаторов объектов интереса (для проверки на появление новых объектов)
+$products = $apiClient->getResponse('crm.lead.fields');
+$products = json_decode($products->getContent(), true)['result'];
+$products = $products["UF_CRM_1671268152606"]['items'];
+$prod_ids = array();
+foreach ($products as $product) { array_push($prod_ids, $product['ID']); }
+
 // Установление параметров для подключения к базе данных
 $host = 'localhost';
 $username = 'bitrix0';
@@ -34,26 +49,28 @@ if (mysqli_connect_errno()) {
     die('Ошибка соединения: ' . mysqli_connect_error());
 }
 
-// Запрос на получение информации о сотрудниках
-$result = $apiClient->getResponse('user.get');
-$result = json_decode($result->getContent(), true)['result'];
-// Создание пустого массива сотрудников
-$users = array();
-// Цикл для прохождения по результатам запроса, идентификатор сотрудника заносится в массив $users
-foreach ($result as $record) { array_push($users, $record['ID']); }
+// Проверка на появление новых объектов интереса
+foreach ($prod_ids as $product) {
+        $query = sprintf("SELECT SUM('object_%d' IN (column_name)) AS res FROM information_schema.columns WHERE table_name = 'efficiency_eval';", $product);
+        $result = mysqli_query($link, $query)->fetch_assoc()['res'];
+        if(!$result) {
+		$query = sprintf("ALTER TABLE efficiency_eval ADD COLUMN object_%d DECIMAL(5, 2)", $product);
+		mysqli_query($link, $query);
+	}
+}
+
 // Цикл для прохождения по пользователям
 foreach ($users as $user) {
 	// Запрос для вставки данных в таблицу efficiency_eval
 	$query = sprintf("
-		INSERT INTO efficiency_eval(user_id, period, modified, processed, junk, distribution_percentage, avg_completion)
+		INSERT INTO efficiency_eval(user_id, period, modified, processed, junk, avg_completion)
 		SELECT 
 			%d, -- Идентификатор пользователя
-			subdate(NOW(), 1), -- Период (день подсчёта)
+			CURDATE(), -- Период (день подсчёта)
 			SUM(STATUS_ID <> 'NEW' AND STATUS_ID <> 'IN_PROCESS' OR OPPORTUNITY <> 0 
 				OR UF_CRM_1671268152606 IS NOT NULL OR STATUS_SEMANTIC_ID = 'F'), -- Количество обработанных лидов
 			SUM(STATUS_ID='PROCESSED'), -- Количество лидов со статусом 'Подписан договор'
 			SUM(STATUS_ID='JUNK'), -- Количество лидов со статусом 'Некачественный лид'
-			ROUND(SUM(UF_CRM_1671268152606 IS NULL)/COUNT(*) * 100, 2),
 			ROUND(AVG(UF_CRM_1671268270567), 2) -- Средний процент завершения
 		FROM 
 			b_crm_lead 
@@ -61,6 +78,23 @@ foreach ($users as $user) {
 		WHERE assigned_by_id = %d;", 
 		$user, $user);
 	mysqli_query($link, $query);
+	
+	// Заполнение полей распределения по объектам интереса
+	foreach ($prod_ids as $product) {
+		$query = sprintf("
+			UPDATE efficiency_eval 
+			SET object_%d = (
+				SELECT ROUND(SUM(UF_CRM_1671268152606=%d)/COUNT(*)*100,2) 
+				FROM 
+					b_crm_lead 
+					LEFT JOIN b_uts_crm_lead ON b_crm_lead.id = b_uts_crm_lead.value_id 
+				WHERE assigned_by_id=%d) 
+			WHERE 
+				user_id=%d 
+				AND period=CURDATE();",
+		$product, $product, $user, $user);
+		mysqli_query($link, $query);
+	}
 }
 
 mysqli_close($link);
