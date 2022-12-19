@@ -38,7 +38,7 @@
 			$result = mysqli_query($link, $query)->fetch_all();
 			// Определение полей (для выборки) и заголовков таблицы
 			$fields = array("last_name", "name", "second_name", "user_id", "period", "modified", "processed", "junk", "avg_completion");
-			$headers = array("Фамилия", "Имя", "Отчество", "ID сотрудника", "Период", "Лидов обработано", "Лидов подписало договор", "Некачественных лидов", "Процент завершения");
+			$headers = array("#", "Фамилия", "Имя", "Отчество", "ID сотрудника", "Период", "Лидов обработано", "Лидов подписало договор", "Некачественных лидов", "Процент завершения");
 			$objects = array();			
 
 			foreach ($result as $field) {
@@ -52,10 +52,13 @@
 			echo "
 			<thead>
                                 <tr>";
-                        foreach ($headers as $field) { echo "<th>" . $field . "</th>"; }
+                        foreach ($headers as $field) { echo "<th scope='col'>" . $field . "</th>"; }
                           echo "</tr>
                        	</thead>
                         <tbody>";	
+
+			// Определение номера строки в выборке
+			$num = 1;
 
 			// Если форма была подтверждена
 			if (isset($_GET['done'])) {
@@ -91,13 +94,14 @@
 					// Запрос на выборку данных для выбранного промежутка времени
 					$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period >= '%s' AND period <= '%s';", implode(', ', $fields), $_GET['start_date'], $_GET['end_date']);
                                 	$result = mysqli_query($link, $query);
-
+					
                                 	while($row = $result->fetch_assoc()) {
-                                        	echo "<tr>";
+                                        	echo "<tr> <td scope='row'>". $num . "</td>";
                                         	foreach ($fields as $field) {
                                         	        echo "<td>" . $row[$field] . "</td>";
                                         	}
                                         	echo "</tr>";
+						$num++;
                                 	}
 				}
 			// Если форма не была подтверждена(вход без параметров; первый вход), то вывести данные с предыдущего дня по текущий
@@ -105,11 +109,12 @@
 				$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period >='%s' AND period <= '%s';", implode(', ', $fields), date('Y-m-d',strtotime("-1 days")), date('Y-m-d'));
 				$result = mysqli_query($link, $query);
 				while($row = $result->fetch_assoc()) {
-					echo "<tr>";
+					echo "<tr> <td scope='row'>". $num . "</td>";
 					foreach ($fields as $field) {
 						echo "<td>" . $row[$field] . "</td>";
 					}
 					echo "</tr>";
+					$num++;
 				}
 			}
 			?>
