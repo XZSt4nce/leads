@@ -37,24 +37,29 @@ $prod_ids = array();
 foreach ($products as $product) { array_push($prod_ids, $product['ID']); }
 
 // Установление параметров для подключения к базе данных
-$host = 'localhost';
-$username = 'bitrix0';
-$password = str_replace("\n", "", fgets(fopen('db_pass.txt', 'r')));
-$db = 'sitemanager';
+$settings = include '/home/bitrix/www/bitrix/.settings.php';
+$settings = $settings['connections']['value']['default'];
 
 // Подключение
-$link = mysqli_connect($host, $username, $password, $db);
+$link = mysqli_connect($settings['host'], $settings['login'], $settings['password'], $settings['database']);
 // Проверка успешности подключения
 if (mysqli_connect_errno()) {
-    die('Ошибка соединения: ' . mysqli_connect_error());
+		die('Ошибка соединения: ' . mysqli_connect_error());
 }
 
 // Проверка на появление новых объектов интереса
 foreach ($prod_ids as $product) {
-        $query = sprintf("SELECT SUM('object_%d' IN (column_name)) AS res FROM information_schema.columns WHERE table_name = 'efficiency_eval';", $product);
+        $query = sprintf("
+			SELECT SUM('object_%d' IN (column_name)) AS res 
+			FROM information_schema.columns 
+			WHERE table_name = 'efficiency_eval';", 
+			$product);
         $result = mysqli_query($link, $query)->fetch_assoc()['res'];
         if(!$result) {
-		$query = sprintf("ALTER TABLE efficiency_eval ADD COLUMN object_%d DECIMAL(5, 2)", $product);
+		$query = sprintf("
+			ALTER TABLE efficiency_eval 
+			ADD COLUMN object_%d DECIMAL(5, 2)", 
+			$product);
 		mysqli_query($link, $query);
 	}
 }

@@ -25,8 +25,8 @@ $apiClient = new \Bitrix24\SDK\Core\ApiClient($credentials, $client, $log);
 $leads = array();
 // Запрос идентификатора и статуса лидов, статус которых не "PROCESSED", не "JUNK" и не "CONVERTED"
 $tmp = $apiClient->getResponse('crm.lead.list', 
-							   ['start'=>$next, 'select'=>['ID', 'STATUS_ID'], 
-							   'filter'=>['!STATUS_ID'=>'PROCESSED', '!STATUS_ID'=>'JUNK', '!STATUS_ID'=>'CONVERTED']]);
+	['start'=>$next, 'select'=>['ID', 'STATUS_ID'], 
+	'filter'=>['!STATUS_ID'=>'PROCESSED', '!STATUS_ID'=>'JUNK', '!STATUS_ID'=>'CONVERTED']]);
 // Сохранить количество лидов из выборки								
 $tmp = json_decode($tmp->getContent(), true)['total'];
 // Определение случайной страницы лидов
@@ -36,10 +36,9 @@ $k = rand(0, $k);
 // Запрос идентификатора, статуса, семантического статуса, объекта интереса, предполагаемой суммы и процента завершения лидов,
 // статус которых не "PROCESSED", не "JUNK" и не "CONVERTED"
 $result = $apiClient->getResponse('crm.lead.list', ['start'=>50*$k, 
-								  'select'=>['ID', 'STATUS_ID', 'STATUS_SEMANTIC_ID', 
-										   // UF_CRM_1671268152606 – пользовательское поле, которое означает объект интереса
-											 'UF_CRM_1671268152606', 'OPPORTUNITY', "UF_CRM_1671268270567"], 
-								  'filter'=>["!STATUS_ID"=>"PROCESSED", "!STATUS_ID"=>"JUNK", "!STATUS_ID"=>"CONVERTED"]]);
+	'select'=>['ID', 'STATUS_ID', 'STATUS_SEMANTIC_ID', 'UF_CRM_1671268152606', 'OPPORTUNITY', "UF_CRM_1671268270567"],
+	// UF_CRM_1671268152606 – пользовательское поле, которое означает объект интереса
+	'filter'=>["!STATUS_ID"=>"PROCESSED", "!STATUS_ID"=>"JUNK", "!STATUS_ID"=>"CONVERTED"]]);
 $result = json_decode($result->getContent(), true);
 
 // По ТЗ программа должна изменять 50 случайных лидов. Если их меньше, то прервать выполнение программы
@@ -82,7 +81,7 @@ foreach ($leads as $lead) {
 			}
 
 			$fields = array("ASSIGNED_BY_ID"=>$assign, "OPPORTUNITY"=>$opportunity, "STATUS_ID"=>"IN_PROCESS", 
-							"UF_CRM_1671268270567"=>$completion, 'UF_CRM_1671268152606'=>$product);
+				"UF_CRM_1671268270567"=>$completion, 'UF_CRM_1671268152606'=>$product);
 			// Запрос на изменение лида
 			$apiClient->getResponse('crm.lead.update', ['id'=>$lead['ID'], 'fields'=>$fields]);
 			break;
@@ -110,7 +109,7 @@ foreach ($leads as $lead) {
 			}
 
 			$fields = array('STATUS_ID'=>$status, 'UF_CRM_1671268270567'=>$completion, 'STATUS_SEMANTIC_ID'=>$semantic, 
-							'UF_CRM_1671268152606'=>$product, 'OPPORTUNITY'=>$opportunity);
+				'UF_CRM_1671268152606'=>$product, 'OPPORTUNITY'=>$opportunity);
 			$apiClient->getResponse('crm.lead.update', ['id'=>$lead['ID'], 'fields'=>$fields]);
             break;
 		// Если "Думает", "Назначена встреча" или "Ожидание решения"
