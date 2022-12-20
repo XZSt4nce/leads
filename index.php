@@ -19,9 +19,10 @@
 		</form>
 		<!-- Текст для вывода ошибки -->
 		<div id="error" style="display: none; color: #FF0000"></div>
-		<br>
+		<br><br>
 		<!-- Таблица -->
-		<table class="table">
+		<div class="table-responsive">
+		<table class="table table-sm">
 			<?php
 			// Подключение к БД
 			$host = "localhost";
@@ -52,12 +53,12 @@
 			echo "
 			<thead>
                                 <tr>";
-                        foreach ($headers as $field) { echo "<th scope='col'>" . $field . "</th>"; }
+                        foreach ($headers as $field) { echo "<th scope='col' class='table-dark'>" . $field . "</th>"; }
                           echo "</tr>
                        	</thead>
                         <tbody>";	
 
-			// Определение номера строки в выборке
+			// Определение номера строки
 			$num = 1;
 
 			// Если форма была подтверждена
@@ -91,34 +92,51 @@
                                         ";
 				// В остальных случаях:
 				} else {
-					// Запрос на выборку данных для выбранного промежутка времени
-					$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period >= '%s' AND period <= '%s';", implode(', ', $fields), $_GET['start_date'], $_GET['end_date']);
-                                	$result = mysqli_query($link, $query);
-					
-                                	while($row = $result->fetch_assoc()) {
-                                        	echo "<tr> <td scope='row'>". $num . "</td>";
-                                        	foreach ($fields as $field) {
-                                        	        echo "<td>" . $row[$field] . "</td>";
-                                        	}
-                                        	echo "</tr>";
-						$num++;
-                                	}
+					$timer = $_GET['start_date'];
+					$end = $_GET['end_date'];
+					while ($timer < $end) {
+						// Запрос на выборку данных для выбранного промежутка времени
+						$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period = '%s';", implode(', ', $fields), $timer);
+                                		$result = mysqli_query($link, $query);
+
+						if (mysqli_num_rows($result)==0) { $timer=date('Y-m-d', strtotime($timer . '+1 day')); continue; }
+
+						echo "<tr><th class='table-dark' colspan=" . count($headers) . ">" . date('d F Y', strtotime($timer)) . "</th></tr>";
+                                		while($row = $result->fetch_assoc()) {
+                                        		echo "<tr> <th scope='row'>". $num . "</th>";
+                                        		foreach ($fields as $field) {
+                                        		        echo "<td>" . $row[$field] . "</td>";
+                                        		}
+                                        		echo "</tr>";
+							$num++;
+                                		}
+						$timer=date('Y-m-d', strtotime($timer . '+1 day'));
+					}
 				}
 			// Если форма не была подтверждена(вход без параметров; первый вход), то вывести данные с предыдущего дня по текущий
 			} else {
-				$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period >='%s' AND period <= '%s';", implode(', ', $fields), date('Y-m-d',strtotime("-1 days")), date('Y-m-d'));
-				$result = mysqli_query($link, $query);
-				while($row = $result->fetch_assoc()) {
-					echo "<tr> <td scope='row'>". $num . "</td>";
-					foreach ($fields as $field) {
-						echo "<td>" . $row[$field] . "</td>";
+				$timer = date('Y-m-d', strtotime("-1 day"));
+				$end = date('Y-m-d');
+				while ($timer <= $end) {
+					$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period ='%s';", implode(', ', $fields), $timer);
+					$result = mysqli_query($link, $query);
+					if (mysqli_num_rows($result)==0) { $timer=date('Y-m-d', strtotime($timer . '+1 day')); continue; }
+
+					echo "<tr><th class='table-dark' colspan=" . count($headers) . ">" . date('d F Y', strtotime($timer)) . "</th></tr>";
+					while ($row = $result->fetch_assoc()) {
+						echo "<tr><th scope='row'>". $num . "</th>";
+						foreach ($fields as $field) {
+							echo "<td>" . $row[$field] . "</td>";
+						}
+						echo "</tr>";
+						$num++;
 					}
-					echo "</tr>";
-					$num++;
+					$timer=date('Y-m-d', strtotime($timer . '+1 day'));
 				}
 			}
 			?>
 			</tbody>
-		</table>	
+		</table>
+		</div>
 	</body>
 </html>
