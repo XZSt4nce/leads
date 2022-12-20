@@ -7,7 +7,7 @@
 		<!-- Подключение CSS Bootstrap -->
 		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
 	</head>
-	<body style="margin: 50px;"> <!-- По края страницы будут отступы в 50 пикселей -->
+	<body>
 		<h1 align=center>Эффективность сотрудников</h1> <!-- Заголовок первого уровня, выровненный посередине -->
 		<!-- Форма для заполнения начальной и конечной даты выборки данных -->
 		<form name="form" action="" method="get" style="margin: 20px 0px 5px 0px;">
@@ -21,8 +21,7 @@
 		<div id="error" style="display: none; color: #FF0000"></div>
 		<br><br>
 		<!-- Таблица -->
-		<div class="table-responsive">
-		<table class="table table-sm">
+		<table class="table table-sm table-striped table-responsive">
 			<?php
 			// Подключение к БД
 			$host = "localhost";
@@ -38,8 +37,8 @@
 			$query = "SELECT column_name FROM information_schema.columns WHERE table_name = 'efficiency_eval' AND column_name LIKE 'object_%';";
 			$result = mysqli_query($link, $query)->fetch_all();
 			// Определение полей (для выборки) и заголовков таблицы
-			$fields = array("last_name", "name", "second_name", "user_id", "period", "modified", "processed", "junk", "avg_completion");
-			$headers = array("#", "Фамилия", "Имя", "Отчество", "ID сотрудника", "Период", "Лидов обработано", "Лидов подписало договор", "Некачественных лидов", "Процент завершения");
+			$fields = array("last_name", "name", "second_name", "user_id", "modified", "processed", "junk", "avg_completion");
+			$headers = array("#", "Фамилия", "Имя", "Отчество", "ID сотрудника", "Лидов обработано", "Лидов подписало договор", "Некачественных лидов", "Процент завершения");
 			$objects = array();			
 
 			foreach ($result as $field) {
@@ -51,9 +50,9 @@
 
 			// Заголовки
 			echo "
-			<thead>
+			<thead class='table-dark'>
                                 <tr>";
-                        foreach ($headers as $field) { echo "<th scope='col' class='table-dark'>" . $field . "</th>"; }
+                        foreach ($headers as $field) { echo "<th class'header' scope='col'>" . $field . "</th>"; }
                           echo "</tr>
                        	</thead>
                         <tbody>";	
@@ -99,11 +98,11 @@
 						$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period = '%s';", implode(', ', $fields), $timer);
                                 		$result = mysqli_query($link, $query);
 
+						// Если для даты нет данных, то перейти к следующей дате
 						if (mysqli_num_rows($result)==0) { $timer=date('Y-m-d', strtotime($timer . '+1 day')); continue; }
-
-						echo "<tr><th class='table-dark' colspan=" . count($headers) . ">" . date('d F Y', strtotime($timer)) . "</th></tr>";
+						echo "<tr><th class='table-dark' style='padding-left: 30px' colspan=" . count($headers) . ">" . date('d F Y', strtotime($timer)) . "</th></tr>";
                                 		while($row = $result->fetch_assoc()) {
-                                        		echo "<tr> <th scope='row'>". $num . "</th>";
+                                        		echo "<tr> <th scope='row' class='table-primary'>". $num . "</th>";
                                         		foreach ($fields as $field) {
                                         		        echo "<td>" . $row[$field] . "</td>";
                                         		}
@@ -111,6 +110,7 @@
 							$num++;
                                 		}
 						$timer=date('Y-m-d', strtotime($timer . '+1 day'));
+						$num = 1;
 					}
 				}
 			// Если форма не была подтверждена(вход без параметров; первый вход), то вывести данные с предыдущего дня по текущий
@@ -122,9 +122,9 @@
 					$result = mysqli_query($link, $query);
 					if (mysqli_num_rows($result)==0) { $timer=date('Y-m-d', strtotime($timer . '+1 day')); continue; }
 
-					echo "<tr><th class='table-dark' colspan=" . count($headers) . ">" . date('d F Y', strtotime($timer)) . "</th></tr>";
+					echo "<tr><th class='table-dark' style='padding-left: 30px' colspan=" . count($headers) . ">" . date('d F Y', strtotime($timer)) . "</th></tr>";
 					while ($row = $result->fetch_assoc()) {
-						echo "<tr><th scope='row'>". $num . "</th>";
+						echo "<tr><th scope='row' class='table-primary'>". $num . "</th>";
 						foreach ($fields as $field) {
 							echo "<td>" . $row[$field] . "</td>";
 						}
@@ -132,11 +132,11 @@
 						$num++;
 					}
 					$timer=date('Y-m-d', strtotime($timer . '+1 day'));
+					$num = 1;
 				}
 			}
 			?>
 			</tbody>
 		</table>
-		</div>
 	</body>
 </html>
