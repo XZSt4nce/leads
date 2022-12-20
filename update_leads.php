@@ -8,10 +8,10 @@ use Monolog\Logger;
 use Symfony\Component\HttpClient\HttpClient;
 
 $log = new Logger('name');
-$log->pushHandler(new StreamHandler('b24-api-client-debug.log', Logger::DEBUG));
+$log->pushHandler(new StreamHandler('/var/log/b24-api-client-debug.log', Logger::DEBUG));
 
 $client = HttpClient::create(['verify_peer'=>false, 'verify_host'=>false]);
-$key = str_replace("\n", "", fgets(fopen('rest_api_key.txt', 'r')));
+$key = str_replace("\n", "", fgets(fopen('/var/rest/rest_api_key.txt', 'r')));
 $credentials = new \Bitrix24\SDK\Core\Credentials\Credentials(
     new \Bitrix24\SDK\Core\Credentials\WebhookUrl($key),
     null,

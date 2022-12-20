@@ -24,11 +24,9 @@
 		<table class="table table-sm table-striped table-responsive">
 			<?php
 			// Подключение к БД
-			$host = "localhost";
-                        $user = "bitrix0";
-                        $pass = str_replace("\n", "", fgets(fopen('db_pass.txt', 'r')));
-                        $db = "sitemanager";
-                        $link = mysqli_connect($host, $user, $pass, $db);
+			$settings = include '/home/bitrix/www/bitrix/.settings.php';
+			$settings = $settings['connections']['value']['default'];
+                        $link = mysqli_connect($settings['host'], $settings['login'], $settings['password'], $settings['database']);
                         if (mysqli_connect_errno()) {
                                 die('Ошибка соединения: ' . mysqli_connect_error());
                         }
@@ -39,14 +37,21 @@
 			// Определение полей (для выборки) и заголовков таблицы
 			$fields = array("last_name", "name", "second_name", "user_id", "modified", "processed", "junk", "avg_completion");
 			$headers = array("#", "Фамилия", "Имя", "Отчество", "ID сотрудника", "Лидов обработано", "Лидов подписало договор", "Некачественных лидов", "Процент завершения");
-			$objects = array();			
+			$objects = array();
+			$objects_headers = array();
 
 			foreach ($result as $field) {
 				array_push($objects, $field[0]);
 			}
 
+			foreach ($objects as $object) {
+				$object = (int) filter_var($object, FILTER_SANITIZE_NUMBER_INT);
+				$query = sprintf("SELECT value FROM b_user_field_enum WHERE id = %d", $object);
+				array_push($objects_headers, mysqli_query($link, $query)->fetch_row()[0] . ", %");
+			}
+
 			$fields = array_merge($fields, $objects);
-			$headers = array_merge($headers, $objects);
+			$headers = array_merge($headers, $objects_headers);
 
 			// Заголовки
 			echo "
@@ -60,6 +65,9 @@
 			// Определение номера строки
 			$num = 1;
 
+			// Подготовка запроса (защита GET-запроса от SQL-Injection)
+			$efficiency = $link->prepare(sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period = ?;", implode(', ', $fields)));
+
 			// Если форма была подтверждена
 			if (isset($_GET['done'])) {
 				echo "
@@ -71,17 +79,8 @@
 					end.value = '" . $_GET['end_date'] . "';
 				</script>
 				";
-				// Если одна из дат не заполнена, то отклонить запрос
-				if (empty($_GET['start_date']) || empty($_GET['end_date'])) {
-					echo "
-					<script>
-						var error = document.getElementById('error');
-						error.innerHTML = 'Выберите даты';
-						error.style.display = 'inline';
-					</script> 
-					";
 				// Если начальная дата больше конечной, то отклонить запрос
-				} elseif ($_GET['start_date'] > $_GET['end_date']) {
+				if ($_GET['start_date'] > $_GET['end_date'] && !empty($_GET['end_date'])) {
 					echo "
                                         <script>
                                                 var error = document.getElementById('error');
@@ -89,14 +88,55 @@
                                                 error.style.display = 'inline';
                                         </script>
                                         ";
+				// Если не заполнены обе даты
+                                } elseif (empty($_GET['start_date']) && empty($_GET['end_date'])) {
+                                        echo "
+                                        <script>
+                                                var error = document.getElementById('error');
+                                                error.innerHTML = 'Выберите дату';
+                                                error.style.display = 'inline';
+                                        </script>
+                                        ";
+				// Если не заполнена только начальная дата
+				} elseif (empty($_GET['start_date'])) {
+					$efficiency->bind_param('s', $_GET['end_date']);
+					$efficiency->execute();
+					$result = $efficiency->get_result();
+
+					echo "<tr><th class='table-dark' style='padding-left: 30px' colspan=" . count($headers) . ">" . date('d F Y', strtotime($_GET['end_date'])) . "</th></tr>";
+					while($row = $result->fetch_assoc()) {
+                                            echo "<tr> <th scope='row' class='table-primary'>". $num . "</th>";
+                                            foreach ($fields as $field) {
+                                                echo "<td>" . $row[$field] . "</td>";
+                                            }
+                                            echo "</tr>";
+                                            $num++;
+                                        }
+				// Если не заполнена только конечная дата
+				} elseif (empty($_GET['end_date'])) {
+					$efficiency->bind_param('s', $_GET['start_date']);
+                                        $efficiency->execute();
+                                        $result = $efficiency->get_result();
+
+                                        echo "<tr><th class='table-dark' style='padding-left: 30px' colspan=" . count($headers) . ">" . date('d F Y', strtotime($_GET['start_date'])) . "</th></tr>";
+					while($row = $result->fetch_assoc()) {
+                                            echo "<tr> <th scope='row' class='table-primary'>". $num . "</th>";
+                                            foreach ($fields as $field) {
+                                                echo "<td>" . $row[$field] . "</td>";
+                                            }
+                                            echo "</tr>";
+                                            $num++;
+                                        }
 				// В остальных случаях:
 				} else {
 					$timer = $_GET['start_date'];
 					$end = $_GET['end_date'];
-					while ($timer < $end) {
+
+					while ($timer <= $end) {
 						// Запрос на выборку данных для выбранного промежутка времени
-						$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period = '%s';", implode(', ', $fields), $timer);
-                                		$result = mysqli_query($link, $query);
+						$efficiency->bind_param('s', $timer);
+						$efficiency->execute();
+                                		$result = $efficiency->get_result();
 
 						// Если для даты нет данных, то перейти к следующей дате
 						if (mysqli_num_rows($result)==0) { $timer=date('Y-m-d', strtotime($timer . '+1 day')); continue; }
@@ -118,10 +158,11 @@
 				$timer = date('Y-m-d', strtotime("-1 day"));
 				$end = date('Y-m-d');
 				while ($timer <= $end) {
-					$query = sprintf("SELECT %s FROM efficiency_eval JOIN b_user ON efficiency_eval.user_id = b_user.id WHERE period ='%s';", implode(', ', $fields), $timer);
-					$result = mysqli_query($link, $query);
-					if (mysqli_num_rows($result)==0) { $timer=date('Y-m-d', strtotime($timer . '+1 day')); continue; }
+					$efficiency->bind_param('s', $timer);
+					$efficiency->execute();
+					$result = $efficiency->get_result();
 
+					if (mysqli_num_rows($result)==0) { $timer=date('Y-m-d', strtotime($timer . '+1 day')); continue; }
 					echo "<tr><th class='table-dark' style='padding-left: 30px' colspan=" . count($headers) . ">" . date('d F Y', strtotime($timer)) . "</th></tr>";
 					while ($row = $result->fetch_assoc()) {
 						echo "<tr><th scope='row' class='table-primary'>". $num . "</th>";
